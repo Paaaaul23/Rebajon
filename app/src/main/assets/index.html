@@ -1,0 +1,84 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#f5f9ff;--ink:#16324f;--mut:#6b819a;--ac:#2f80ed;--ok:#1fa97a}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--ink);padding-bottom:70px}
+header{padding:22px 16px 6px;font-size:22px;font-weight:700}
+.view{display:none;padding:8px 16px}.view.on{display:block;animation:in .3s ease}
+@keyframes in{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
+.card{background:#fff;border-radius:16px;padding:14px;margin:10px 0;box-shadow:0 2px 10px #2f80ed14;transition:transform .15s}
+.card:active{transform:scale(.97)}
+button{border:0;border-radius:12px;padding:12px 16px;background:var(--ac);color:#fff;font-size:15px;transition:transform .12s}
+button:active{transform:scale(.92)}button.g{background:#e6f0ff;color:var(--ac)}
+input,textarea{width:100%;padding:12px;border:1px solid #d6e3f5;border-radius:12px;margin:6px 0;font:15px system-ui}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#fff;border-top:1px solid #e3ecf8}
+nav button{flex:1;background:none;color:var(--mut);border-radius:0;padding:16px}
+nav button.on{color:var(--ac);font-weight:700}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:4px 0}
+.mut{color:var(--mut);font-size:13px}.tag{background:#e6f9f1;color:var(--ok);border-radius:8px;padding:2px 8px;font-size:12px}
+#toast{position:fixed;bottom:80px;left:16px;right:16px;background:#16324f;color:#fff;padding:12px;border-radius:12px;opacity:0;transition:opacity .3s;pointer-events:none}
+#toast.on{opacity:1}
+</style></head><body>
+<header>💧 Rebajón</header>
+<div id="list" class="view on"></div>
+<div id="det" class="view"></div>
+<div id="add" class="view">
+ <input id="n" placeholder="Nombre del producto"><input id="c" placeholder="Categoría (ej. móviles)">
+ <textarea id="u" rows="5" placeholder="Una URL por línea (Amazon, PcComponentes, MediaMarkt...)"></textarea>
+ <button id="addb">Añadir seguimiento</button></div>
+<div id="set" class="view">
+ <input id="s_srv" placeholder="Servidor, ej. http://192.168.1.50:8000">
+ <input id="s_drop" type="number" placeholder="% mínimo de rebaja">
+ <input id="s_st" placeholder="Solo webs (vacío = todas): amazon,pccomponentes">
+ <input id="s_cat" placeholder="Solo categorías (vacío = todas)">
+ <button id="saveb">Guardar</button></div>
+<nav><button data-v="list" class="on">Ofertas</button><button data-v="add">Añadir</button><button data-v="set">Ajustes</button></nav>
+<div id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e};
+let S=(window.Android&&Android.getServer())||localStorage.getItem('srv')||'';
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),2500)}
+async function api(p,o){if(!S)throw new Error('Configura el servidor en Ajustes');
+ const r=await fetch(S+p,o);if(!r.ok)throw new Error('Error '+r.status);return r.json()}
+function show(id){document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));$('#'+id).classList.add('on');
+ document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===id));
+ if(id==='list')load();if(id==='set')loadSet()}
+window.goBack=()=>{if($('#det').classList.contains('on')){show('list');return true}return false};
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.v));
+const fmt=v=>v==null?'—':v.toFixed(2)+' €';
+async function load(){const box=$('#list');box.replaceChildren();
+ try{const ps=await api('/products');if(!ps.length)box.append(el('p','mut','Aún no sigues ningún producto.'));
+  ps.forEach(p=>{const pr=p.links.map(l=>l.price).filter(x=>x!=null);const best=pr.length?Math.min(...pr):null;
+   const c=el('div','card');const r=el('div','row');r.append(el('b','',p.name),el('span','tag',fmt(best)));
+   c.append(r,el('div','mut',(p.category||'Sin categoría')+' · '+p.links.length+' webs'));c.onclick=()=>detail(p);box.append(c)})
+ }catch(e){box.append(el('p','mut',e.message))}}
+function detail(p){const d=$('#det');d.replaceChildren();
+ const bk=el('button','g','← Volver');bk.onclick=()=>show('list');d.append(bk,el('h3','',p.name));
+ const colors=['#2f80ed','#1fa97a','#f2994a','#9b51e0','#eb5757'];
+ const NS='http://www.w3.org/2000/svg';const svg=document.createElementNS(NS,'svg');svg.setAttribute('viewBox','0 0 300 120');svg.style.width='100%';
+ const all=p.links.flatMap(l=>l.history);
+ if(all.length>1){const xs=all.map(a=>a[0]),ys=all.map(a=>a[1]);const x0=Math.min(...xs),x1=Math.max(...xs)||1,y0=Math.min(...ys),y1=Math.max(...ys);
+  p.links.forEach((l,i)=>{if(!l.history.length)return;
+   const pts=l.history.map(h=>(10+280*((h[0]-x0)/((x1-x0)||1)))+','+(110-100*((h[1]-y0)/((y1-y0)||1)))).join(' ');
+   const pl=document.createElementNS(NS,'polyline');pl.setAttribute('points',pts);pl.setAttribute('fill','none');
+   pl.setAttribute('stroke',colors[i%5]);pl.setAttribute('stroke-width','2');svg.append(pl)})}
+ const cc=el('div','card');cc.append(svg);d.append(cc);
+ const best=Math.min(...p.links.map(l=>l.price==null?Infinity:l.price));
+ p.links.forEach((l,i)=>{const c=el('div','card');const r=el('div','row');
+  const n=el('b','',l.store);n.style.color=colors[i%5];r.append(n,el('span',l.price===best?'tag':'',fmt(l.price)));
+  const o=el('button','g','Abrir');o.onclick=()=>window.Android?Android.openUrl(l.url):window.open(l.url);
+  const r2=el('div','row');r2.append(el('span','mut','Mínimo histórico: '+fmt(l.min)),o);c.append(r,r2);d.append(c)});
+ const del=el('button','g','Eliminar seguimiento');del.onclick=async()=>{try{await api('/products/'+p.id,{method:'DELETE'});show('list')}catch(e){toast(e.message)}};d.append(del);
+ show('det')}
+$('#addb').onclick=async()=>{const urls=$('#u').value.split('\n').map(s=>s.trim()).filter(s=>s.startsWith('http'));
+ if(!$('#n').value.trim()||!urls.length)return toast('Pon nombre y al menos una URL');
+ try{await api('/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('#n').value.trim(),category:$('#c').value.trim(),urls})});
+  $('#n').value=$('#c').value=$('#u').value='';toast('Añadido. Los precios aparecerán en unos minutos');show('list')}catch(e){toast(e.message)}};
+async function loadSet(){$('#s_srv').value=S;try{const c=await api('/settings');$('#s_drop').value=c.min_drop;$('#s_st').value=c.stores;$('#s_cat').value=c.categories}catch(e){}}
+$('#saveb').onclick=async()=>{S=$('#s_srv').value.trim().replace(/\/$/,'');if(!/^https?:\/\//.test(S))return toast('URL de servidor no válida');
+ localStorage.setItem('srv',S);if(window.Android)Android.setServer(S);
+ try{await api('/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({min_drop:$('#s_drop').value||'15',stores:$('#s_st').value.toLowerCase().replace(/\s/g,''),categories:$('#s_cat').value})});toast('Guardado')}catch(e){toast(e.message)}};
+load();
+</script></body></html>
